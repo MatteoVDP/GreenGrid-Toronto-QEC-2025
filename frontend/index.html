@@ -56,6 +56,25 @@
             color: #666;
         }
         
+        .score-header {
+            cursor: pointer;
+            padding: 5px 8px;
+            margin: 3px 0;
+            border-radius: 4px;
+            transition: background-color 0.2s;
+            user-select: none;
+        }
+        
+        .score-header:hover {
+            background-color: #f0f0f0;
+        }
+        
+        .score-header.active {
+            background-color: #e3f2fd;
+            font-weight: bold;
+            color: #1976d2;
+        }
+        
         .legend {
             position: absolute;
             bottom: 30px;
@@ -71,6 +90,11 @@
         .legend h4 {
             margin-bottom: 10px;
             color: #333;
+        }
+        
+        .legend-title {
+            font-weight: bold;
+            margin-bottom: 5px;
         }
         
         .legend-item {
@@ -106,37 +130,43 @@
     <div class="info-panel" id="infoPanel" style="display: none;">
         <h3>Area Information</h3>
         <p><strong>DAUID:</strong> <span id="dauid">-</span></p>
-        <p><strong>ML Priority Score:</strong> <span id="mlScore">-</span></p>
-        <p><strong>Heat Norm:</strong> <span id="heatNorm">-</span></p>
-        <p><strong>Tree Norm:</strong> <span id="treeNorm">-</span></p>
-        <p><strong>Vulnerability Norm:</strong> <span id="vulnNorm">-</span></p>
-        <p><strong>Footfall Norm:</strong> <span id="footfallNorm">-</span></p>
+        <p class="score-header active" data-score="ml_priority_score" id="header-ml">
+            <strong>Planting Priority Score:</strong> <span id="mlScore">-</span>
+        </p>
+        <p class="score-header" data-score="heat_norm" id="header-heat">
+            <strong>Heat Score:</strong> <span id="heatNorm">-</span>
+        </p>
+        <p class="score-header" data-score="tree_norm" id="header-tree">
+            <strong>Tree Score:</strong> <span id="treeNorm">-</span>
+        </p>
+        <p class="score-header" data-score="vuln_norm" id="header-vuln">
+            <strong>Vulnerability Score:</strong> <span id="vulnNorm">-</span>
+        </p>
+        <p class="score-header" data-score="footfall_norm" id="header-footfall">
+            <strong>Footfall Score:</strong> <span id="footfallNorm">-</span>
+        </p>
     </div>
     <div class="legend">
-        <h4>Planting Priority Index</h4>
+        <h4 id="legendTitle">Planting Priority Index</h4>
         <div class="legend-item">
-            <div class="legend-color" style="background: #006837;"></div>
-            <span>Low (0.0 - 0.3)</span>
+            <div class="legend-color" id="legend-color-1" style="background: #ffffcc;"></div>
+            <span>Low (0.0 - 0.2)</span>
         </div>
         <div class="legend-item">
-            <div class="legend-color" style="background: #31a354;"></div>
-            <span>Low-Medium (0.3 - 0.5)</span>
+            <div class="legend-color" id="legend-color-2" style="background: #ffff99;"></div>
+            <span>Low-Medium (0.2 - 0.4)</span>
         </div>
         <div class="legend-item">
-            <div class="legend-color" style="background: #78c679;"></div>
-            <span>Medium (0.5 - 0.6)</span>
+            <div class="legend-color" id="legend-color-3" style="background: #ffff66;"></div>
+            <span>Medium (0.4 - 0.6)</span>
         </div>
         <div class="legend-item">
-            <div class="legend-color" style="background: #c2e699;"></div>
-            <span>Medium-High (0.6 - 0.7)</span>
+            <div class="legend-color" id="legend-color-4" style="background: #ffcc00;"></div>
+            <span>Medium-High (0.6 - 0.8)</span>
         </div>
         <div class="legend-item">
-            <div class="legend-color" style="background: #ffffcc;"></div>
-            <span>High (0.7 - 0.8)</span>
-        </div>
-        <div class="legend-item">
-            <div class="legend-color" style="background: #fee391;"></div>
-            <span>Very High (0.8+)</span>
+            <div class="legend-color" id="legend-color-5" style="background: #cc9900;"></div>
+            <span>High (0.8+)</span>
         </div>
     </div>
     
@@ -153,30 +183,225 @@
         let geojsonLayer;
         let loadingElement = document.getElementById('loading');
         let infoPanel = document.getElementById('infoPanel');
+        let selectedScoreType = 'ml_priority_score'; // Default score type
         
-        // Function to get color based on ML priority score
+        // Score type configuration
+        const scoreTypes = {
+            'ml_priority_score': {
+                name: 'Planting Priority Score',
+                fallback: 'target_priority',
+                label: 'Planting Priority Index'
+            },
+            'heat_norm': {
+                name: 'Heat Score',
+                fallback: null,
+                label: 'Heat Index'
+            },
+            'tree_norm': {
+                name: 'Tree Score',
+                fallback: null,
+                label: 'Tree Index'
+            },
+            'vuln_norm': {
+                name: 'Vulnerability Score',
+                fallback: null,
+                label: 'Vulnerability Index'
+            },
+            'footfall_norm': {
+                name: 'Footfall Score',
+                fallback: null,
+                label: 'Footfall Index'
+            }
+        };
+        
+        // Color functions for each score type
+        function getHeatColor(score) {
+            if (!score && score !== 0) return '#808080';
+            // Red gradient: light red to dark red (higher = darker)
+            if (score < 0.2) return '#ffcccc';
+            else if (score < 0.4) return '#ff9999';
+            else if (score < 0.6) return '#ff6666';
+            else if (score < 0.8) return '#ff3333';
+            else return '#cc0000';
+        }
+        
+        function getTreeColor(score) {
+            if (!score && score !== 0) return '#808080';
+            // Green gradient: light green to dark green (higher = darker)
+            if (score < 0.2) return '#ccffcc';
+            else if (score < 0.4) return '#99ff99';
+            else if (score < 0.6) return '#66ff66';
+            else if (score < 0.8) return '#33cc33';
+            else return '#006600';
+        }
+        
+        function getPlantingPriorityColor(score) {
+            if (!score && score !== 0) return '#808080';
+            // Yellow gradient: light yellow to dark yellow (higher = darker)
+            if (score < 0.2) return '#ffffcc';
+            else if (score < 0.4) return '#ffff99';
+            else if (score < 0.6) return '#ffff66';
+            else if (score < 0.8) return '#ffcc00';
+            else return '#cc9900';
+        }
+        
+        function getVulnerabilityColor(score) {
+            if (!score && score !== 0) return '#808080';
+            // Purple gradient: light purple to dark purple (higher = darker)
+            if (score < 0.2) return '#e6ccff';
+            else if (score < 0.4) return '#cc99ff';
+            else if (score < 0.6) return '#b366ff';
+            else if (score < 0.8) return '#9933ff';
+            else return '#6600cc';
+        }
+        
+        function getFootfallColor(score) {
+            if (!score && score !== 0) return '#808080';
+            // Brown gradient: light brown to dark brown (higher = darker)
+            if (score < 0.2) return '#e6d4c4';
+            else if (score < 0.4) return '#ccb399';
+            else if (score < 0.6) return '#b3926f';
+            else if (score < 0.8) return '#996633';
+            else return '#663300';
+        }
+        
+        // Function to get color based on score and selected score type
         function getColor(score) {
             if (!score && score !== 0) return '#808080';
             
-            if (score < 0.3) return '#006837';
-            else if (score < 0.5) return '#31a354';
-            else if (score < 0.6) return '#78c679';
-            else if (score < 0.7) return '#c2e699';
-            else if (score < 0.8) return '#ffffcc';
-            else return '#fee391';
+            switch(selectedScoreType) {
+                case 'heat_norm':
+                    return getHeatColor(score);
+                case 'tree_norm':
+                    return getTreeColor(score);
+                case 'ml_priority_score':
+                    return getPlantingPriorityColor(score);
+                case 'vuln_norm':
+                    return getVulnerabilityColor(score);
+                case 'footfall_norm':
+                    return getFootfallColor(score);
+                default:
+                    return getPlantingPriorityColor(score);
+            }
+        }
+        
+        // Function to get score value from feature properties
+        function getScoreValue(feature) {
+            const config = scoreTypes[selectedScoreType];
+            let score = feature.properties[selectedScoreType];
+            
+            if ((score === null || score === undefined) && config.fallback) {
+                score = feature.properties[config.fallback];
+            }
+            
+            return score || 0;
         }
         
         // Function to style GeoJSON features
         function style(feature) {
-            const mlScore = feature.properties.ml_priority_score || feature.properties.target_priority || 0;
+            const score = getScoreValue(feature);
             return {
-                fillColor: getColor(mlScore),
+                fillColor: getColor(score),
                 weight: 1,
                 opacity: 0.8,
                 color: '#fff',
                 dashArray: '',
                 fillOpacity: 0.6
             };
+        }
+        
+        // Function to update legend colors based on selected score type
+        function updateLegendColors() {
+            let colors = [];
+            
+            switch(selectedScoreType) {
+                case 'heat_norm':
+                    colors = ['#ffcccc', '#ff9999', '#ff6666', '#ff3333', '#cc0000'];
+                    break;
+                case 'tree_norm':
+                    colors = ['#ccffcc', '#99ff99', '#66ff66', '#33cc33', '#006600'];
+                    break;
+                case 'ml_priority_score':
+                    colors = ['#ffffcc', '#ffff99', '#ffff66', '#ffcc00', '#cc9900'];
+                    break;
+                case 'vuln_norm':
+                    colors = ['#e6ccff', '#cc99ff', '#b366ff', '#9933ff', '#6600cc'];
+                    break;
+                case 'footfall_norm':
+                    colors = ['#e6d4c4', '#ccb399', '#b3926f', '#996633', '#663300'];
+                    break;
+                default:
+                    colors = ['#ffffcc', '#ffff99', '#ffff66', '#ffcc00', '#cc9900'];
+            }
+            
+            // Update legend color boxes
+            for (let i = 1; i <= 5; i++) {
+                const colorBox = document.getElementById('legend-color-' + i);
+                if (colorBox) {
+                    colorBox.style.background = colors[i - 1];
+                }
+            }
+        }
+        
+        // Function to update map colors based on selected score type
+        function updateMapColors() {
+            if (!geojsonLayer) return;
+            
+            geojsonLayer.eachLayer(function(layer) {
+                const score = getScoreValue(layer.feature);
+                layer.setStyle({
+                    fillColor: getColor(score),
+                    weight: 1,
+                    opacity: 0.8,
+                    color: '#fff',
+                    dashArray: '',
+                    fillOpacity: 0.6
+                });
+            });
+            
+            // Update legend title and colors
+            const config = scoreTypes[selectedScoreType];
+            document.getElementById('legendTitle').textContent = config.label;
+            updateLegendColors();
+        }
+        
+        // Function to set active score type
+        function setActiveScoreType(scoreType) {
+            selectedScoreType = scoreType;
+            
+            // Update info panel headers
+            document.querySelectorAll('.score-header').forEach(header => {
+                if (header.dataset.score === scoreType) {
+                    header.classList.add('active');
+                } else {
+                    header.classList.remove('active');
+                }
+            });
+            
+            // Update map colors
+            updateMapColors();
+        }
+        
+        // Wait for DOM to be fully loaded before attaching event listeners
+        document.addEventListener('DOMContentLoaded', function() {
+            // Add click handlers to info panel score headers
+            document.querySelectorAll('.score-header').forEach(header => {
+                header.addEventListener('click', function() {
+                    setActiveScoreType(this.dataset.score);
+                });
+            });
+        });
+        
+        // Also attach immediately in case DOM is already loaded (script at bottom of body)
+        if (document.readyState === 'loading') {
+            // DOM hasn't finished loading yet, wait for DOMContentLoaded
+        } else {
+            // DOM is already loaded, attach listeners immediately
+            document.querySelectorAll('.score-header').forEach(header => {
+                header.addEventListener('click', function() {
+                    setActiveScoreType(this.dataset.score);
+                });
+            });
         }
         
         // Function to handle feature highlighting
@@ -207,7 +432,16 @@
         
         // Function to reset feature highlighting
         function resetHighlight(e) {
-            geojsonLayer.resetStyle(e.target);
+            const layer = e.target;
+            const score = getScoreValue(layer.feature);
+            layer.setStyle({
+                fillColor: getColor(score),
+                weight: 1,
+                opacity: 0.8,
+                color: '#fff',
+                dashArray: '',
+                fillOpacity: 0.6
+            });
         }
         
         // Function to handle feature click
@@ -249,6 +483,9 @@
                 
                 // Hide loading indicator
                 loadingElement.style.display = 'none';
+                
+                // Initialize legend colors
+                updateLegendColors();
             })
             .catch(error => {
                 console.error('Error loading GeoJSON:', error);
