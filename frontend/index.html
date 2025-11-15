@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Toronto GeoJSON Map</title>
+    
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+          integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+          crossorigin=""/>
+    
+    <!-- Leaflet JavaScript -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+            integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+            crossorigin=""></script>
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            height: 100vh;
+            overflow: hidden;
+        }
+        
+        #map {
+            width: 100%;
+            height: 100vh;
+        }
+        
+        .info-panel {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            z-index: 1000;
+            max-width: 300px;
+            font-size: 14px;
+        }
+        
+        .info-panel h3 {
+            margin-bottom: 10px;
+            color: #333;
+        }
+        
+        .info-panel p {
+            margin: 5px 0;
+            color: #666;
+        }
+        
+        .legend {
+            position: absolute;
+            bottom: 30px;
+            right: 10px;
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            z-index: 1000;
+            font-size: 12px;
+        }
+        
+        .legend h4 {
+            margin-bottom: 10px;
+            color: #333;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin: 5px 0;
+        }
+        
+        .legend-color {
+            width: 20px;
+            height: 20px;
+            margin-right: 8px;
+            border: 1px solid #ccc;
+        }
+        
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            padding: 20px 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            z-index: 2000;
+            font-size: 16px;
+        }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+    <div id="loading" class="loading">Loading map data...</div>
+    <div class="info-panel" id="infoPanel" style="display: none;">
+        <h3>Area Information</h3>
+        <p><strong>DAUID:</strong> <span id="dauid">-</span></p>
+        <p><strong>ML Priority Score:</strong> <span id="mlScore">-</span></p>
+        <p><strong>Heat Norm:</strong> <span id="heatNorm">-</span></p>
+        <p><strong>Tree Norm:</strong> <span id="treeNorm">-</span></p>
+        <p><strong>Vulnerability Norm:</strong> <span id="vulnNorm">-</span></p>
+        <p><strong>Footfall Norm:</strong> <span id="footfallNorm">-</span></p>
+    </div>
+    <div class="legend">
+        <h4>ML Priority Score</h4>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #006837;"></div>
+            <span>Low (0.0 - 0.3)</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #31a354;"></div>
+            <span>Low-Medium (0.3 - 0.5)</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #78c679;"></div>
+            <span>Medium (0.5 - 0.6)</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #c2e699;"></div>
+            <span>Medium-High (0.6 - 0.7)</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #ffffcc;"></div>
+            <span>High (0.7 - 0.8)</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #fee391;"></div>
+            <span>Very High (0.8+)</span>
+        </div>
+    </div>
+    
+    <script>
+        // Initialize map centered on Toronto
+        const map = L.map('map').setView([43.65, -79.38], 11);
+        
+        // Add OpenStreetMap tile layer
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors',
+            maxZoom: 19
+        }).addTo(map);
+        
+        let geojsonLayer;
+        let loadingElement = document.getElementById('loading');
+        let infoPanel = document.getElementById('infoPanel');
+        
+        // Function to get color based on ML priority score
+        function getColor(score) {
+            if (!score && score !== 0) return '#808080';
+            
+            if (score < 0.3) return '#006837';
+            else if (score < 0.5) return '#31a354';
+            else if (score < 0.6) return '#78c679';
+            else if (score < 0.7) return '#c2e699';
+            else if (score < 0.8) return '#ffffcc';
+            else return '#fee391';
+        }
+        
+        // Function to style GeoJSON features
+        function style(feature) {
+            const mlScore = feature.properties.ml_priority_score || feature.properties.target_priority || 0;
+            return {
+                fillColor: getColor(mlScore),
+                weight: 1,
+                opacity: 0.8,
+                color: '#fff',
+                dashArray: '',
+                fillOpacity: 0.6
+            };
+        }
+        
+        // Function to handle feature highlighting
+        function highlightFeature(e) {
+            const layer = e.target;
+            
+            layer.setStyle({
+                weight: 3,
+                color: '#666',
+                dashArray: '',
+                fillOpacity: 0.8
+            });
+            
+            if (!L.Browser.ie && !L.Browser.opera && !L.Browser.edge) {
+                layer.bringToFront();
+            }
+            
+            // Update info panel
+            const props = layer.feature.properties;
+            document.getElementById('dauid').textContent = props.DAUID || '-';
+            document.getElementById('mlScore').textContent = (props.ml_priority_score || props.target_priority || 0).toFixed(4);
+            document.getElementById('heatNorm').textContent = (props.heat_norm || 0).toFixed(4);
+            document.getElementById('treeNorm').textContent = (props.tree_norm || 0).toFixed(4);
+            document.getElementById('vulnNorm').textContent = (props.vuln_norm || 0).toFixed(4);
+            document.getElementById('footfallNorm').textContent = (props.footfall_norm || 0).toFixed(4);
+            infoPanel.style.display = 'block';
+        }
+        
+        // Function to reset feature highlighting
+        function resetHighlight(e) {
+            geojsonLayer.resetStyle(e.target);
+        }
+        
+        // Function to handle feature click
+        function zoomToFeature(e) {
+            map.fitBounds(e.target.getBounds(), {
+                padding: [50, 50],
+                maxZoom: 16
+            });
+        }
+        
+        // Function to add interaction to each feature
+        function onEachFeature(feature, layer) {
+            layer.on({
+                mouseover: highlightFeature,
+                mouseout: resetHighlight,
+                click: zoomToFeature
+            });
+        }
+        
+        // Load GeoJSON data
+        fetch('toronto_with_predictions.geojson')
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Failed to load GeoJSON file');
+                }
+                return response.json();
+            })
+            .then(data => {
+                // Create GeoJSON layer with styling
+                geojsonLayer = L.geoJSON(data, {
+                    style: style,
+                    onEachFeature: onEachFeature
+                }).addTo(map);
+                
+                // Fit map to bounds of GeoJSON data
+                map.fitBounds(geojsonLayer.getBounds(), {
+                    padding: [50, 50]
+                });
+                
+                // Hide loading indicator
+                loadingElement.style.display = 'none';
+            })
+            .catch(error => {
+                console.error('Error loading GeoJSON:', error);
+                loadingElement.textContent = 'Error loading map data. Please check the console.';
+                loadingElement.style.color = 'red';
+            });
+    </script>
+</body>
+</html>
+
