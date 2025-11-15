@@ -1,0 +1,5 @@
+feature,importance
+vuln_norm,0.44040478853859716
+tree_norm_inv,0.19853327418503836
+heat_norm,0.18479611884063246
+footfall_norm,0.17626581843573186

@@ -190,9 +190,13 @@ def normalize(series):
 combined['heat_norm'] = normalize(combined['heat'])
 combined['tree_norm'] = normalize(combined['tree_coverage'])
 combined['vuln_norm'] = normalize(combined['vulnerability'])
-combined['footfall_norm'] = normalize(combined['footfall'])
 
-print(f"  ✓ Normalized: heat, tree_coverage, vulnerability, footfall")
+# Log transform footfall before normalizing (handles skewed traffic data)
+combined['footfall_log'] = np.log1p(combined['footfall'])  # log(1+x) to handle zeros
+combined['footfall_norm'] = normalize(combined['footfall_log'])
+
+print(f"  ✓ Normalized: heat, tree_coverage, vulnerability")
+print(f"  ✓ Log-transformed and normalized: footfall (reduces skewness)")
 
 # =============================================================================
 # STEP 6: CREATE SYNTHETIC TARGET VARIABLE
