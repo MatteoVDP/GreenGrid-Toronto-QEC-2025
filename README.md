@@ -54,7 +54,7 @@ Toronto faces increasing urban heat island effects and unequal access to green s
 
 ### View the Live Demo
 
-Visit the interactive map: [https://jcub05.github.io/QEC-2025-Team2/](https://jcub05.github.io/QEC-2025-Team2/)
+Visit the interactive map: [https://jcub05.github.io/GreenGrid-Toronto-QEC-2025/](https://jcub05.github.io/GreenGrid-Toronto-QEC-2025/)
 
 ### Run Locally
 
