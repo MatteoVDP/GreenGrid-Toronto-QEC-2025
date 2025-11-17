@@ -6,7 +6,7 @@
 
 An intelligent tree planting prioritization system that uses machine learning to identify optimal locations for urban tree planting across Toronto's 3,702 neighborhoods, balancing heat mitigation, environmental justice, and community access.
 
-View the demo below!
+View the live demo below!
 
 [![Live Demo](https://img.shields.io/badge/Demo-Live-brightgreen)](https://jcub05.github.io/GreenGrid-Toronto-QEC-2025/)
 [![Python](https://img.shields.io/badge/Python-3.13-blue)](https://www.python.org/)
